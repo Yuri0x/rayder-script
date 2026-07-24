@@ -1,0 +1,29 @@
+# urlfinder 工具需要在当前目录运行一次，以生成 config 文件
+
+vars:
+  URL: "http://example.com"
+  USAGE: "rayder -w workflow.yaml URL=http://example.com"
+
+parallel: false
+
+modules:  
+  - name: katana
+    silent: true
+    cmds:
+      - echo {{URL}} | katana -d 5 -jc -jsl -xhr -kf -fx -fs dn | tee katana_result.txt
+
+  - name: hakrawler
+    silent: true
+    cmds:
+      - echo {{URL}} | hakrawler | tee hakrawler_result.txt
+
+  - name: cariddi
+    silent: true
+    cmds:
+      - echo {{URL}} | cariddi -s -e -info -ext 7 -sf ~/wordlists/keyword/secret.txt -rua -ot cariddi_result
+  
+  - name: urlfinder
+    silent: true
+    cmds:
+      - urlfinder -i -u {{URL}} -s 200,302,403,500 -z 1 -o .
+    

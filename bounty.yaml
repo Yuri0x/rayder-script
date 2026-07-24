@@ -1,0 +1,93 @@
+# src、bounty 的批量模版，减少了完整性，确保了速度以及精确性
+# 在测试之前，请确保目录下存在 subdomain.yaml workflow 得到的 http_result.txt & naabu_result.txt
+
+vars:
+  URL: "httpx_result.txt"
+  USAGE: "rayder -w workflow.yaml URL=httpx_result.txt"
+
+parallel: false
+
+modules:  
+  - name: gau
+    silent: true
+    cmds:
+      - cat {{URL}} | gauu | tee -a gau_output.txt
+
+  - name: katana
+    silent: true
+    cmds:
+      # if get gov.cn use -fs fqdn, because dn is subdomain grab it will grabing more gov website out of ranges.
+      - cat {{URL}} | katana -jc -jsl -xhr -kf all -fx -fs rdn | tee -a katana_output.txt
+
+  - name: hakrawler
+    silent: true
+    cmds:
+      - cat {{URL}} | hakrawler | tee -a hakrawler_output.txt
+
+  - name: conform & filter
+    silent: true
+    cmds:
+      - cat gau_output.txt katana_output.txt hakrawler_output.txt | anew urls_result.txt
+      - cat urls_result.txt | uro | tee -a params_result.txt
+      - rm -rf gau_output.txt katana_output.txt hakrawler_output.txt
+
+  - name: sensitive
+    silent: true
+    cmds:
+      - cat urls_result.txt | gff interest | httpx -silent -mc 200,201,202,203,204,301,302,307 | tee -a sensitive_result.txt
+
+  - name: nuclei dast cmdi
+    silent: true
+    cmds:
+      - cat params_result.txt | gff cmdi | nuclei -t ~/nuclei-tripse/dast/cmdi/ -dast | tee -a dast_cmdi_output.txt
+
+  - name: nuclei dast lfi
+    silent: true
+    cmds:
+      - cat params_result.txt | gff lfi | nuclei -t ~/nuclei-tripse/dast/lfi/ -dast | tee -a dast_lfi_output.txt
+
+  - name: nuclei dast redirect
+    silent: true
+    cmds:
+      - cat params_result.txt | gff redirect | nuclei -t ~/nuclei-tripse/dast/redirect/ -dast | tee -a dast_redirect_output.txt
+  
+  - name: nuclei dast sqli
+    silent: true
+    cmds:
+      - cat params_result.txt | gff sqli | nuclei -t ~/nuclei-tripse/dast/sqli/ -dast | tee -a dast_sqli_output.txt
+
+  - name: nuclei dast ssrf
+    silent: true
+    cmds:
+      - cat params_result.txt | gff ssrf | nuclei -t ~/nuclei-tripse/dast/ssrf/ -dast | tee -a dast_ssrf_output.txt
+
+  - name: nuclei dast ssti
+    silent: true
+    cmds:
+      - cat params_result.txt | gff ssti | nuclei -t ~/nuclei-tripse/dast/ssti/ -dast | tee -a dast_ssti_output.txt
+
+  - name: nuclei dast xss
+    silent: true
+    cmds:
+      - cat params_result.txt | gff xss | nuclei -t ~/nuclei-tripse/dast/xss/ -dast | tee -a dast_xss_output.txt
+      
+  - name: nuclei dast xxe
+    silent: true
+    cmds:
+      - cat params_result.txt | nuclei -t ~/nuclei-tripse/dast/xxe/ -dast | tee -a dast_xxe_output.txt
+      
+  - name: nuclei bounty
+    silent: true
+    cmds:
+      - cat {{URL}} | nuclei -t ~/nuclei-tripse/bounty/ -nh | tee -a bounty_result.txt
+
+  - name: dddd scan
+    silent: true
+    cmds:
+      - dddd -t naabu_result.txt
+      
+  - name: organize result & clean
+    silent: true
+    cmds:
+      - cat dast_cmdi_output.txt dast_lfi_output.txt dast_redirect_output.txt dast_sqli_output.txt dast_ssrf_output.txt dast_ssti_output.txt  dast_xss_output.txt dast_xxe_output.txt | tee -a dast_result.txt
+      - rm -rf dast_cmdi_output.txt dast_lfi_output.txt dast_redirect_output.txt dast_sqli_output.txt dast_ssrf_output.txt dast_ssti_output.txt  dast_xss_output.txt dast_xxe_output.txt

@@ -1,0 +1,83 @@
+
+# author: leadlife
+# get subdomain rayder workflow
+
+vars:
+  DOMAIN: "domains.txt"
+  USAGE: "rayder -w subdomain.yaml DOMAIN=domains.txt"
+
+parallel: false
+
+modules:
+  - name: subfinder
+    silent: true
+    cmds: 
+      - cat {{DOMAIN}} | subfinder -silent -all | anew subfinder_output.txt
+
+  - name: crt - ssl
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'curl -s -A "Mozilla/5.0" "https://crt.sh/?q=%.{}&output=json"' | jq -r '.[].name_value' | anew crt_ssl_output.txt
+
+  - name: certspotter - ssl
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'curl -s -A "Mozilla/5.0" "https://api.certspotter.com/v1/issuances?domain={}&include_subdomains=true&expand=dns_names"' | jq -r '.[].dns_names' | morefind -d | anew certspotter_ssl_output.txt
+
+  - name: web archive
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'curl -s -A "Mozilla/5.0" "http://web.archive.org/cdx/search/cdx?url=*.{}/*&output=text&fl=original&collapse=urlkey"' | sed -e 's_https*://__' -e "s/\/.*//" | sort -u | anew web_archive_output.txt
+
+  - name: jldc
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'curl -s -A "Mozilla/5.0" "https://jldc.me/anubis/subdomains/{}"' | morefind -d | anew jldc_output.txt
+
+  - name: rapiddns
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'rapiddns -s {}' | anew rapiddns_output.txt
+
+  - name: hackertarget
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'curl -s -A "Mozilla/5.0" "https://api.hackertarget.com/hostsearch/?q={}"' | anew | morefind -d | tee -a hackertarget_output.txt
+
+  - name: subdomain center
+    silent: true
+    cmds:
+      - cat {{DOMAIN}} | parallel -j 2 'curl -A "Mozilla/5.0" "https://api.subdomain.center/?domain={}"' | anew | morefind -d | tee -a subdomain_center_output.txt
+
+    # active brute force subdomain
+  - name: puredns bruteforce
+    silent: true
+    cmds:
+      - puredns bruteforce ~/wordlists/dns/top.txt -d {{DOMAIN}} -r ~/wordlists/dns/resolve.txt -q | tee -a puredns_output.txt
+
+  - name: organize
+    silent: true
+    cmds:
+      - cat subfinder_output.txt crt_ssl_output.txt certspotter_ssl_output.txt web_archive_output.txt jldc_output.txt rapiddns_output.txt hackertarget_output.txt subdomain_center_output.txt puredns_output.txt | anew subdomain_output.txt
+  
+  - name: puredns resolve
+    silent: true
+    cmds:
+      - cat subdomain_output.txt | puredns resolve -r ~/wordlists/dns/resolve.txt -q | tee -a puredns_subdomain_result.txt
+
+  - name: clear files
+    silent: true
+    cmds:
+      - rm -rf subfinder_output.txt crt_ssl_output.txt certspotter_ssl_output.txt web_archive_output.txt jldc_output.txt rapiddns_output.txt hackertarget_output.txt subdomain_center_output.txt puredns_output.txt subdomain_output.txt
+
+  # 子域名搜集完毕，进行后续处理方便批量，直接给 bounty.yaml workflow
+  - name: naabu
+    silent: true
+    cmds:
+      - cat puredns_subdomain_result.txt | naabu -wn -ps 80-90,8080-8090,443,135,139,445,3389,22,10022,21,1022,10443 -ss -pf ~/wordlists/ports/bounty-top.txt -silent -o naabu_result.txt
+  
+  # 得到 http/s 结果，方便 bounty.yaml 中的爬虫等操作
+  - name: httpx
+    silent: true
+    cmds:
+      - cat naabu_result.txt | httpx -silent -o httpx_result.txt

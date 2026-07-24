@@ -1,0 +1,66 @@
+# 工作、日常渗透使用的 workflow，其确保了测试的完整性。
+# 该 workflow 默认关闭 oob,oast 的 template 请自行判断客户的网络环境是否允许 oob
+# ----------------------------------------------------------------------------------------
+# 在使用该 workflow 之前请自行调用 root 权限进行存活性判断 ip 的同时扫描端口: 
+# cat ips.txt | sudo naabu -wn -arp -pe -ps 80-90,8080-8090,443,135,139,445,3389,22,10022,21,1022,10443 -ss -pf ports.txt -silent -o naabu_result.txt
+
+
+parallel: false
+modules:  
+  - name: httpx
+    silent: true
+    cmds:
+      - cat naabu_result.txt | httpx -silent | tee httpx_result.txt
+
+  # 目标若存在公网环境，则可使用 gau   
+  # - name: gau
+  #   silent: true
+  #   cmds:
+  #     - cat httpx_result.txt | gauu | tee -a gau_output.txt
+
+  - name: katana
+    silent: true
+    cmds:
+      # if get gov.cn use -fs fqdn, because dn is subdomain grab it will grabing more gov website out of ranges.
+      - cat httpx_result.txt | katana -d 5 -jc -jsl -xhr -kf all -fx -fs rdn | tee -a katana_output.txt
+
+  - name: hakrawler
+    silent: true
+    cmds:
+      - cat httpx_result.txt | hakrawler | tee -a hakrawler_output.txt
+
+  - name: conform & filter
+    silent: true
+    cmds:
+      - cat gau_output.txt katana_output.txt hakrawler_output.txt | anew urls_result.txt
+      - cat urls_result.txt | uro | tee -a params_result.txt
+      - rm -rf gau_output.txt katana_output.txt hakrawler_output.txt
+
+  - name: sensitive
+    silent: true
+    cmds:
+      - cat urls_result.txt | gff interest | httpx -silent -mc 200 | tee -a sensitive_result.txt
+
+  - name: nuclei dast
+    silent: true
+    cmds:
+      # close oob,oast tags template
+      - cat params_result.txt | nuclei -t ~/nuclei-tripse/dast/ -dast -ni -et oast,oob -nh | tee -a dast_result.txt
+      # enable oob,oast
+      # - cat params_result.txt | nuclei -t ~/nuclei-tripse/dast/ -dast | tee -a dast_result.txt
+
+  - name: dddd scan
+    silent: true
+    cmds:
+      # close oob,oast tags template
+      - dddd -t naabu_result.txt -ni -et oast,oob -o dddd_result.txt
+      # enable oob,oast
+      # - dddd -t naabu_result.txt -o dddd_result.txt
+
+  - name: nuclei bounty
+    silent: true
+    cmds:
+      # close oob,oast tags template
+      - cat httpx_result.txt | nuclei -t ~/nuclei-tripse/bounty/ -ni -et oast,oob -nh | tee -a bounty_result.txt
+      # enable oob,oast
+      # - cat httpx_result.txt | nuclei -t ~/nuclei-tripse/bounty/ | tee -a bounty_result.txt
