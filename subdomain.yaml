@@ -74,7 +74,8 @@ modules:
   - name: naabu
     silent: true
     cmds:
-      - cat puredns_subdomain_result.txt | naabu -wn -ps 80-90,8080-8090,443,135,139,445,3389,22,10022,21,1022,10443 -ss -pf ~/wordlists/ports/bounty-top.txt -silent -o naabu_result.txt
+      - cat puredns_subdomain_result.txt | naabu -wn -ps 23,161,80-90,8000-8010,8080-8090,443,135,139,445,3389,13389,22,10022,21,1022,10443 -c 50 -rate 2000 -ss -pf -pf ~/wordlists/ports/bounty-top.txt -o naabu_result.txt
+      # cat puredns_subdomain_result.txt | naabu -wn -ps 23,161,80-90,8000-8010,8080-8090,443,135,139,445,3389,13389,22,10022,21,1022,10443 -c 50 -rate 2000 -ss -pf -pf ~/wordlists/ports/bounty.txt -o naabu_result.txt
   
   # 得到 http/s 结果，方便 bounty.yaml 中的爬虫等操作
   - name: httpx
