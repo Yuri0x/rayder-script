@@ -80,4 +80,4 @@ modules:
   - name: httpx
     silent: true
     cmds:
-      - cat naabu_result.txt | httpx -silent -o httpx_result.txt
+      - cat naabu_result.txt | httpx -mc 200,301,302 -silent -o httpx_result.txt
